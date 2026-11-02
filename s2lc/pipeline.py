@@ -25,6 +25,7 @@ MIN_YEAR = 2019
 SIEVE_PX = 50  # 0.5 ha minimum mapping unit at 10 m
 BLOCK, HALO = 1024, 64
 OUTSIDE = 255  # raster nodata: outside the AOI
+IMAGE_BANDS = ["red", "green", "blue", "nir"]  # composite export, true colour + NIR
 ATTRIBUTION = (
     "Contains modified Copernicus Sentinel data {year}. Model trained with labels derived "
     "from ESA WorldCover 2021 (CC BY 4.0), Esri/Impact Observatory LULC 2021 (CC BY 4.0) and "
@@ -82,6 +83,7 @@ def classify_grid(geobox: GeoBox, year: int, quarter: int, gap_fill: bool,
     """Composite + predict block by block (with a halo so block edges keep context)."""
     cls = np.full(geobox.shape, NODATA, np.uint8)
     filled = np.zeros(geobox.shape, bool)
+    image = np.zeros((len(IMAGE_BANDS), *geobox.shape), np.uint16)
     scenes: set[str] = set()
     tiles = GeoboxTiles(geobox, (BLOCK, BLOCK))
     idx = [(i, j) for i in range(tiles.shape[0]) for j in range(tiles.shape[1])]
@@ -94,9 +96,12 @@ def classify_grid(geobox: GeoBox, year: int, quarter: int, gap_fill: bool,
         y0, x0 = i * BLOCK, j * BLOCK
         cls[y0:y0 + h, x0:x0 + w] = pred[HALO:HALO + h, HALO:HALO + w]
         filled[y0:y0 + h, x0:x0 + w] = c.filled[HALO:HALO + h, HALO:HALO + w]
+        refl = c.data[[imagery.BANDS.index(b) for b in IMAGE_BANDS], HALO:HALO + h, HALO:HALO + w]
+        image[:, y0:y0 + h, x0:x0 + w] = np.nan_to_num(refl * 10000, nan=0).clip(1, 65535)
+        image[:, y0:y0 + h, x0:x0 + w][:, np.isnan(refl[0])] = 0
         scenes.update(c.scenes)
         progress(10 + int(80 * (k + 1) / len(idx)))
-    return cls, filled, sorted(scenes)
+    return cls, filled, image, sorted(scenes)
 
 
 def summarize(cls: np.ndarray, inside: np.ndarray, filled: np.ndarray, px_m2: float) -> dict:
@@ -127,6 +132,16 @@ def write_cog(path: Path, cls: np.ndarray, geobox: GeoBox) -> None:
         dst.write_colormap(1, {k: (*v[2], 255) for k, v in CLASSES.items()})
 
 
+def write_image(path: Path, image: np.ndarray, geobox: GeoBox) -> None:
+    """The composite the model saw: reflectance x 10000, 0 = no observation."""
+    h, w = image.shape[1:]
+    with rasterio.open(path, "w", driver="COG", width=w, height=h, count=len(image),
+                       dtype="uint16", crs=geobox.crs.to_wkt(), transform=geobox.affine,
+                       nodata=0, compress="deflate") as dst:
+        dst.write(image)
+        dst.descriptions = tuple(IMAGE_BANDS)
+
+
 def write_geojson(path: Path, cls: np.ndarray, inside: np.ndarray, geobox: GeoBox) -> None:
     feats = []
     for geom, v in features.shapes(cls, mask=inside, transform=geobox.affine):
@@ -150,7 +165,7 @@ def run(aoi: dict, year: int, quarter: int, out_dir: Path,
         raise AoiError(f"AOI is {geom_utm.area / 1e6:.0f} km2; max is {MAX_AOI_KM2:.0f} km2")
     progress(5)
 
-    cls, filled, scenes = classify_grid(geobox, year, quarter, gap_fill, progress)
+    cls, filled, image, scenes = classify_grid(geobox, year, quarter, gap_fill, progress)
     inside = features.geometry_mask([geom_utm], geobox.shape, geobox.affine, invert=True)
     cls = features.sieve(cls, SIEVE_PX, mask=inside)
     cls[~inside] = OUTSIDE
@@ -163,6 +178,9 @@ def run(aoi: dict, year: int, quarter: int, out_dir: Path,
     if "geojson" in formats:
         files.append(out_dir / "landcover.geojson")
         write_geojson(files[-1], cls, inside, geobox)
+    if "image" in formats:
+        files.append(out_dir / "composite.tif")
+        write_image(files[-1], image, geobox)
     progress(98)
 
     res = abs(geobox.resolution.x)

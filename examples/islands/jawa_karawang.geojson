@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Karawang-Bekasi: industry, settlements, rice paddies"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       107.1,
+       -6.4
+      ],
+      [
+       107.36999999999999,
+       -6.4
+      ],
+      [
+       107.36999999999999,
+       -6.130000000000001
+      ],
+      [
+       107.1,
+       -6.130000000000001
+      ],
+      [
+       107.1,
+       -6.4
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

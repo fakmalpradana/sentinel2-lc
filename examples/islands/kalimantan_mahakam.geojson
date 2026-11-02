@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Mahakam delta: mangrove, aquaculture, water"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       117.25,
+       -0.85
+      ],
+      [
+       117.52,
+       -0.85
+      ],
+      [
+       117.52,
+       -0.58
+      ],
+      [
+       117.25,
+       -0.58
+      ],
+      [
+       117.25,
+       -0.85
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

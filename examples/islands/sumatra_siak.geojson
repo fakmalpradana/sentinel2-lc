@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Siak-Pelalawan, Riau: oil palm, peat forest, rivers"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       101.75,
+       0.5
+      ],
+      [
+       102.02,
+       0.5
+      ],
+      [
+       102.02,
+       0.77
+      ],
+      [
+       101.75,
+       0.77
+      ],
+      [
+       101.75,
+       0.5
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

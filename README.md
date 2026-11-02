@@ -54,9 +54,9 @@ to `data/weights/model.pt` (`S2LC_WEIGHTS`).
 
 | Method | Path | |
 |---|---|---|
-| POST | `/v1/classify` | `{aoi, year, quarter, output_formats?: ["geotiff","geojson"], gap_fill?: true}` → `202 {job_id}`; `422` on an invalid AOI or period |
+| POST | `/v1/classify` | `{aoi, year, quarter, output_formats?: ["geotiff","geojson","image"], gap_fill?: true}` → `202 {job_id}`; `422` on an invalid AOI or period |
 | GET | `/v1/jobs/{id}` | `{status, progress_percent, result_summary, files, error_code}` |
-| GET | `/v1/jobs/{id}/files/{name}` | `landcover.tif`, `landcover.geojson` |
+| GET | `/v1/jobs/{id}/files/{name}` | `landcover.tif`, `landcover.geojson`, `composite.tif` (R,G,B,NIR reflectance ×10000) |
 
 Input rules:
 - The AOI must be a valid Polygon or MultiPolygon inside Indonesia (lon 94–142, lat −11.5–6.5).

@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Timika lowland: mangrove, forest, mine tailings"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       136.75,
+       -4.8
+      ],
+      [
+       137.02,
+       -4.8
+      ],
+      [
+       137.02,
+       -4.529999999999999
+      ],
+      [
+       136.75,
+       -4.529999999999999
+      ],
+      [
+       136.75,
+       -4.8
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

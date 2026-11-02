@@ -28,7 +28,7 @@ class ClassifyRequest(BaseModel):
     aoi: dict = Field(description="GeoJSON Polygon/MultiPolygon, Feature or FeatureCollection")
     year: int
     quarter: Literal[1, 2, 3, 4]
-    output_formats: list[Literal["geotiff", "geojson"]] = ["geotiff", "geojson"]
+    output_formats: list[Literal["geotiff", "geojson", "image"]] = ["geotiff", "geojson"]
     gap_fill: bool = True
 
 
