@@ -32,8 +32,6 @@ def load_chips(split: str, tile: int = 256) -> tuple[np.ndarray, np.ndarray]:
     """
     files = []
     for f in sorted(CHIPS.glob("*.npz")):
-        if time.time() - f.stat().st_mtime < 120:  # make_dataset may still be writing it
-            continue
         z = np.load(f)
         if split_of(float(z["lon"]), float(z["lat"])) == split:
             files.append(f)

@@ -10,7 +10,6 @@ import numpy as np
 import planetary_computer
 import rasterio
 from odc.geo.geobox import GeoBox
-from pystac_client import Client
 from rasterio.enums import Resampling
 from rasterio.vrt import WarpedVRT
 
@@ -18,10 +17,11 @@ from s2lc.classes import consensus
 
 WC_URL = ("https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/"
           "ESA_WorldCover_10m_2021_v200_{tile}_Map.tif")
-PC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+# Esri/IO tiles are one file per UTM zone + latitude band. Building the URL directly avoids
+# the Planetary Computer STAC search, which rate-limits (429/503) under parallel load.
+IO_URL = ("https://ai4edataeuwest.blob.core.windows.net/io-lulc/io-annual-lulc-v02/"
+          "{tile}_20210101-20220101.tif")
 OILPALM_VRT = Path(__file__).resolve().parent.parent / "data/raw/oilpalm.vrt"
-
-_pc: Client | None = None
 
 
 def _warp(href: str, geobox: GeoBox) -> np.ndarray:
@@ -55,14 +55,17 @@ def worldcover_tiles(bbox: tuple[float, float, float, float]) -> list[str]:
     return tiles
 
 
+def io_tiles(bbox: tuple[float, float, float, float]) -> list[str]:
+    """UTM zone + MGRS latitude band of each bbox corner, e.g. 48M."""
+    return sorted({f"{int((x + 180) // 6) + 1}{'CDEFGHJKLMNPQRSTUVWX'[int((y + 80) // 8)]}"
+                   for x in bbox[0::2] for y in bbox[1::2]})
+
+
 def read_labels(geobox: GeoBox) -> np.ndarray:
-    global _pc
     bbox = tuple(geobox.geographic_extent.boundingbox)
     wc = _mosaic([WC_URL.format(tile=t) for t in worldcover_tiles(bbox)], geobox)
-    _pc = _pc or Client.open(PC_URL, modifier=planetary_computer.sign_inplace)
-    items = _pc.search(collections=["io-lulc-annual-v02"], bbox=bbox,
-                       datetime="2021-01-01/2021-12-31").item_collection()
-    io = _mosaic([i.assets["data"].href for i in items], geobox)
+    io = _mosaic([planetary_computer.sign(IO_URL.format(tile=t)) for t in io_tiles(bbox)],
+                 geobox)
     op = _warp(str(OILPALM_VRT), geobox)
     return consensus(wc, io, op)
 
@@ -71,4 +74,6 @@ if __name__ == "__main__":
     assert worldcover_tiles((106.9, -6.3, 107.0, -6.2)) == ["S09E105"]
     assert worldcover_tiles((104.5, -0.5, 105.5, 0.5)) == ["S03E102", "S03E105",
                                                            "N00E102", "N00E105"]
+    assert io_tiles((106.9, -6.3, 107.0, -6.2)) == ["48M"]
+    assert io_tiles((101.9, -0.1, 102.1, 0.1)) == ["47M", "47N", "48M", "48N"]
     print("ok")
