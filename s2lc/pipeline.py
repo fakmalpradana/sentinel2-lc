@@ -171,5 +171,5 @@ def run(aoi: dict, year: int, quarter: int, out_dir: Path,
                           "quarter": quarter, "scene_count": len(scenes), "scenes": scenes,
                           "gap_fill": gap_fill}
     summary["attribution"] = ATTRIBUTION.format(year=year)
-    summary["crs"] = geobox.crs.to_string()
+    summary["crs"] = str(geobox.crs)
     return files, summary

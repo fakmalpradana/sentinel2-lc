@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Mahakam delta mangrove"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       117.4,
+       -0.7
+      ],
+      [
+       117.48,
+       -0.7
+      ],
+      [
+       117.48,
+       -0.62
+      ],
+      [
+       117.4,
+       -0.62
+      ],
+      [
+       117.4,
+       -0.7
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

@@ -1,7 +1,6 @@
-"""Train the LightGBM baseline or the U-Net on data/chips.
+"""Train the U-Net on data/chips.
 
-    uv run python scripts/train.py --model lgbm
-    uv run python scripts/train.py --model unet --epochs 40
+    uv run python scripts/train.py --epochs 25
 """
 
 import argparse
@@ -66,34 +65,6 @@ def stats(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return np.nanmean(f, 1).astype(np.float32), np.nanstd(f, 1).astype(np.float32) + 1e-6
 
 
-def train_lgbm(xtr, ytr, xva, yva, mean, std) -> dict:
-    import lightgbm as lgb
-
-    def pixels(x, y, per_class):
-        rng = np.random.default_rng(1)
-        f = np.concatenate([model.normalize(imagery.features(c.astype(np.float32)), mean, std)
-                            .reshape(13, -1).T for c in x])
-        lab = y.reshape(-1)
-        valid = ~np.isnan(x[:, 0].reshape(-1).astype(np.float32))
-        keep = []
-        for c in range(1, 10):
-            ids = np.flatnonzero((lab == c) & valid)
-            keep.append(rng.choice(ids, min(len(ids), per_class), replace=False))
-        keep = np.concatenate(keep)
-        return f[keep], lab[keep] - 1
-
-    ftr, ltr = pixels(xtr, ytr, 150_000)
-    fva, lva = pixels(xva, yva, 30_000)
-    print("lgbm pixels", ftr.shape, np.bincount(ltr, minlength=9), flush=True)
-    booster = lgb.train(
-        {"objective": "multiclass", "num_class": 9, "learning_rate": 0.1, "num_leaves": 127,
-         "min_data_in_leaf": 50, "feature_fraction": 0.9, "verbose": -1},
-        lgb.Dataset(ftr, ltr), 600, valid_sets=[lgb.Dataset(fva, lva)],
-        callbacks=[lgb.early_stopping(30), lgb.log_evaluation(50)],
-    )
-    return {"kind": "lgbm", "model_str": booster.model_to_string(), "mean": mean, "std": std}
-
-
 def gpu_features(x: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:
     """Torch twin of imagery.features + model.normalize, run on device per batch."""
     x = x.float()
@@ -115,9 +86,11 @@ def train_unet(xtr, ytr, xva, yva, mean, std, epochs: int, bs: int) -> dict:
     net = model.build_unet(pretrained=True).to(dev)
     m_t, s_t = torch.from_numpy(mean).to(dev), torch.from_numpy(std).to(dev)
     freq = np.bincount(ytr[ytr != 255].ravel(), minlength=10)[1:].astype(np.float64)
-    w = 1 / np.sqrt(np.maximum(freq, 1) / freq.sum())
-    weight = torch.tensor(w / w.mean(), dtype=torch.float32, device=dev)
-    print("class freq", freq.astype(int).tolist(), "weights", np.round(w / w.mean(), 2).tolist())
+    # inverse-sqrt frequency; the 0.1% floor caps how far a rare class can be up-weighted
+    w = 1 / np.sqrt(np.maximum(freq / freq.sum(), 1e-3))
+    w /= w[freq > 0].mean()
+    weight = torch.tensor(w, dtype=torch.float32, device=dev)
+    print("class freq", freq.astype(int).tolist(), "weights", np.round(w, 2).tolist())
     opt = torch.optim.AdamW(net.parameters(), lr=3e-4, weight_decay=1e-4)
     steps = epochs * math.ceil(len(xtr) / bs)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, 3e-4, total_steps=steps, pct_start=0.05)
@@ -148,7 +121,7 @@ def train_unet(xtr, ytr, xva, yva, mean, std, epochs: int, bs: int) -> dict:
               f"OA {oa:.4f} {time.time() - t0:.0f}s", flush=True)
         if score > best:
             best = score
-            best_ck = {"kind": "unet", "mean": mean, "std": std, "val_miou": score,
+            best_ck = {"mean": mean, "std": std, "val_miou": score,
                        "state_dict": {k: v.detach().cpu().clone()
                                       for k, v in net.state_dict().items()}}
             torch.save(best_ck, RUNS / "unet.pt")
@@ -176,8 +149,7 @@ def confusion(pred: np.ndarray, lab: np.ndarray, nan: np.ndarray) -> np.ndarray:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["lgbm", "unet"], required=True)
-    ap.add_argument("--epochs", type=int, default=40)
+    ap.add_argument("--epochs", type=int, default=25)
     ap.add_argument("--bs", type=int, default=16)
     a = ap.parse_args()
     RUNS.mkdir(exist_ok=True)
@@ -185,8 +157,5 @@ if __name__ == "__main__":
     xva, yva = load_chips("val")
     print("train", xtr.shape, "val", xva.shape, flush=True)
     mean, std = stats(xtr)
-    if a.model == "lgbm":
-        torch.save(train_lgbm(xtr, ytr, xva, yva, mean, std), RUNS / "lgbm.pt")
-    else:
-        train_unet(xtr, ytr, xva, yva, mean, std, a.epochs, a.bs)
+    train_unet(xtr, ytr, xva, yva, mean, std, a.epochs, a.bs)
     print("done", flush=True)

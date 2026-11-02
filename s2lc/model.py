@@ -1,4 +1,4 @@
-"""U-Net (SSL4EO-S12 ResNet50 encoder) and LightGBM classifiers behind one `predict()`."""
+"""U-Net with an SSL4EO-S12 ResNet50 encoder: build, load, tiled predict."""
 
 import os
 import urllib.request
@@ -52,13 +52,9 @@ def load(path: Path = WEIGHTS) -> dict:
             path.parent.mkdir(parents=True, exist_ok=True)
             urllib.request.urlretrieve(WEIGHTS_URL, path)
         ck = torch.load(path, map_location="cpu", weights_only=False)
-        if ck["kind"] == "unet":
-            net = build_unet()
-            net.load_state_dict(ck["state_dict"])
-            ck["net"] = net.to(device()).eval()
-        else:
-            import lightgbm as lgb
-            ck["booster"] = lgb.Booster(model_str=ck["model_str"])
+        net = build_unet()
+        net.load_state_dict(ck["state_dict"])
+        ck["net"] = net.to(device()).eval()
         _cache[path] = ck
     return _cache[path]
 
@@ -91,9 +87,5 @@ def predict(feats: np.ndarray, ck: dict | None = None) -> np.ndarray:
     ck = ck or load()
     valid = ~np.isnan(feats).any(0)
     x = normalize(feats, ck["mean"], ck["std"])
-    if ck["kind"] == "unet":
-        cls = _unet_probs(ck["net"], x).argmax(0) + 1
-    else:
-        p = ck["booster"].predict(x.reshape(13, -1).T)
-        cls = (p.argmax(1) + 1).reshape(feats.shape[1:])
+    cls = _unet_probs(ck["net"], x).argmax(0) + 1
     return np.where(valid, cls, NODATA).astype(np.uint8)

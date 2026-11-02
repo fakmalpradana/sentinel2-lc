@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Kampar, Riau oil palm"
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       101.2,
+       0.3
+      ],
+      [
+       101.28,
+       0.3
+      ],
+      [
+       101.28,
+       0.38
+      ],
+      [
+       101.2,
+       0.38
+      ],
+      [
+       101.2,
+       0.3
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

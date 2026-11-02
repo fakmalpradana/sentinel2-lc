@@ -1,6 +1,6 @@
 """Score checkpoints on the held-out test cells and write runs/eval.md + runs/eval.json.
 
-    uv run python scripts/evaluate.py runs/lgbm.pt runs/unet.pt
+    uv run python scripts/evaluate.py runs/unet.pt
 """
 
 import json
@@ -24,7 +24,7 @@ def evaluate(path: Path, x: np.ndarray, y: np.ndarray) -> dict:
     prec = tp / np.maximum(conf.sum(0), 1)
     rec = tp / np.maximum(conf.sum(1), 1)
     f1 = 2 * prec * rec / np.maximum(prec + rec, 1e-9)
-    return {"model": path.name, "kind": ck["kind"], "oa": float(tp.sum() / conf.sum()),
+    return {"model": path.name, "oa": float(tp.sum() / conf.sum()),
             "miou": miou(conf), "pixels": int(conf.sum()),
             "per_class": {CLASSES[i + 1][1]: {"precision": round(float(prec[i]), 4),
                                               "recall": round(float(rec[i]), 4),
@@ -36,7 +36,7 @@ def evaluate(path: Path, x: np.ndarray, y: np.ndarray) -> dict:
 
 def markdown(r: dict) -> str:
     names = [CLASSES[i][1] for i in range(1, 10)]
-    out = [f"### {r['model']} ({r['kind']})", "",
+    out = [f"### {r['model']}", "",
            f"Overall accuracy **{r['oa']:.4f}**, mIoU **{r['miou']:.4f}**, "
            f"{r['pixels']:,} test pixels.", "",
            "| Class | Precision | Recall | F1 | Support |", "|---|---|---|---|---|"]
