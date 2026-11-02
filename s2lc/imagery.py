@@ -18,8 +18,9 @@ COLLECTION = "sentinel-2-c1-l2a"
 BANDS = ["blue", "green", "red", "rededge1", "rededge2", "rededge3",
          "nir", "nir08", "swir16", "swir22"]  # B02 B03 B04 B05 B06 B07 B08 B8A B11 B12
 CLEAR_SCL = (4, 5, 6)  # vegetation, not-vegetated, water; everything else is cloud/shadow/etc.
-MAX_SCENES = 30
+MAX_SCENES = 16  # least-cloudy first; more scenes add bandwidth, not quality
 MAX_CLOUD = 80
+GAP_FILL_MIN = 0.01  # borrow the previous quarter only if >1% of pixels were never clear
 
 _client: Client | None = None
 
@@ -112,7 +113,7 @@ def composite(geobox: GeoBox, year: int, quarter: int, gap_fill: bool = True,
     filled = np.zeros(geobox.shape, bool)
     scenes = [i.id for i in items]
     hole = np.isnan(data[0])
-    if gap_fill and hole.any():
+    if gap_fill and hole.mean() > GAP_FILL_MIN:
         py, pq = previous_quarter(year, quarter)
         pitems = search(geobox, *quarter_range(py, pq))
         prev = _median(pitems, geobox, pool)

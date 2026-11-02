@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sentinel2-lc demo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; display: flex; height: 100vh; }
+  #map { flex: 1; }
+  aside { width: 320px; padding: 12px; overflow: auto; box-sizing: border-box; }
+  label { display: block; margin: 8px 0 4px; }
+  button { margin-top: 12px; width: 100%; padding: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  td { padding: 2px 4px; border-bottom: 1px solid #ddd; }
+  .sw { display: inline-block; width: 12px; height: 12px; vertical-align: middle; }
+  #status { margin-top: 8px; white-space: pre-wrap; }
+  small { color: #666; }
+</style>
+</head>
+<body>
+<aside>
+  <h3>Sentinel-2 land cover</h3>
+  <p>Gambar poligon AOI di peta atau unggah GeoJSON.</p>
+  <label>Unggah GeoJSON <input type="file" id="file" accept=".geojson,.json"></label>
+  <label>Tahun <select id="year"></select></label>
+  <label>Kuartal
+    <select id="quarter"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+  </label>
+  <button id="run">Klasifikasi</button>
+  <div id="status"></div>
+  <table id="stats"></table>
+  <p><small id="attr"></small></p>
+</aside>
+<div id="map"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+const COLORS = {0:"#000000",1:"#419bdf",2:"#397d49",3:"#00cf75",4:"#c4a000",5:"#e49635",
+                6:"#c4281b",7:"#a59b8f",8:"#b7dc78",9:"#0096a0"};
+const map = L.map("map").setView([-2.5, 118], 5);
+// demo only: OSM tile policy forbids heavy/commercial use; swap the basemap in production
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {maxZoom: 18, attribution: "&copy; OpenStreetMap contributors"}).addTo(map);
+const drawn = new L.FeatureGroup().addTo(map);
+map.addControl(new L.Control.Draw({edit: {featureGroup: drawn},
+  draw: {polyline: false, circle: false, marker: false, circlemarker: false}}));
+map.on(L.Draw.Event.CREATED, e => { drawn.clearLayers(); drawn.addLayer(e.layer); });
+let result = null;
+const now = new Date();
+for (let y = now.getFullYear(); y >= 2019; y--) year.add(new Option(y, y));
+
+file.onchange = async () => {
+  const gj = JSON.parse(await file.files[0].text());
+  drawn.clearLayers();
+  L.geoJSON(gj).eachLayer(l => drawn.addLayer(l));
+  map.fitBounds(drawn.getBounds());
+};
+
+run.onclick = async () => {
+  const fc = drawn.toGeoJSON();
+  if (!fc.features.length) { status.textContent = "Gambar atau unggah AOI dulu."; return; }
+  status.textContent = "Mengirim...";
+  const r = await fetch("/v1/classify", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({aoi: fc, year: +year.value, quarter: +quarter.value})});
+  const body = await r.json();
+  if (!r.ok) { status.textContent = "Ditolak: " + body.detail; return; }
+  poll(body.job_id);
+};
+
+async function poll(id) {
+  const j = await (await fetch(`/v1/jobs/${id}`)).json();
+  status.textContent = `${j.status} ${j.progress_percent}%` + (j.error_message ? `\n${j.error_message}` : "");
+  if (j.status === "complete") return show(id, j.result_summary);
+  if (j.status !== "failed") setTimeout(() => poll(id), 2000);
+}
+
+async function show(id, s) {
+  const gj = await (await fetch(`/v1/jobs/${id}/files/landcover.geojson`)).json();
+  if (result) map.removeLayer(result);
+  result = L.geoJSON(gj, {style: f => ({color: COLORS[f.properties.class_id], weight: 0,
+    fillOpacity: 0.75})}).bindPopup(l => `${l.feature.properties.class} (${l.feature.properties.area_ha} ha)`)
+    .addTo(map);
+  stats.innerHTML = `<tr><td colspan=3><b>${s.area_km2} km²</b> · ${s.imagery.scene_count} scene · ` +
+    `clear ${s.clear_percent}% · filled ${s.filled_percent}%</td></tr>` +
+    s.classes.map(c => `<tr><td><span class="sw" style="background:${COLORS[c.id]}"></span> ${c.name}</td>` +
+      `<td>${c.area_km2} km²</td><td>${c.percent}%</td></tr>`).join("");
+  attr.textContent = s.attribution;
+}
+</script>
+</body>
+</html>
