@@ -1,0 +1,27 @@
+sentinel2-lc
+Copyright 2026 Fairuz Akmal Pradana
+
+This product includes or derives from the following third-party data and models.
+Attribution below is required by their licenses and must be shown to end users of maps
+and models produced by this software.
+
+Imagery
+- Contains modified Copernicus Sentinel data [year of the processed quarter], processed by
+  ESA. Accessed as Cloud-Optimized GeoTIFFs via Element 84 Earth Search on the AWS Registry
+  of Open Data. Copernicus Sentinel data are free, full and open, including commercial use.
+
+Training labels (all CC BY 4.0, https://creativecommons.org/licenses/by/4.0/)
+- ESA WorldCover 10 m 2021 v200. Zanaga, D. et al. (2022). doi:10.5281/zenodo.7254221.
+  © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021)
+  processed by ESA WorldCover consortium.
+- Esri / Impact Observatory 10 m Annual Land Use Land Cover (9-class) v02, 2021.
+  Karra, K. et al. (2021). Global land use/land cover with Sentinel-2 and deep learning.
+  © Impact Observatory, Microsoft and Esri.
+- Global oil palm extent 2021 v1.2. Descals, A. et al. (2024). Global mapping of oil palm
+  planting year from 1990 to 2021. Earth System Science Data 16, 5111-5129.
+  doi:10.5281/zenodo.13379129.
+
+Pretrained weights
+- SSL4EO-S12 ResNet50 MoCo Sentinel-2 encoder (CC BY 4.0). Wang, Y. et al. (2023).
+  SSL4EO-S12: A large-scale multi-modal, multi-temporal dataset for self-supervised
+  learning in Earth observation. IEEE GRSM.
