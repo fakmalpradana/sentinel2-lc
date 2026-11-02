@@ -36,7 +36,10 @@ def _warp(href: str, geobox: GeoBox) -> np.ndarray:
 def _mosaic(hrefs: list[str], geobox: GeoBox) -> np.ndarray:
     out = np.zeros(geobox.shape, np.uint8)
     for href in hrefs:
-        a = _warp(href, geobox)
+        try:
+            a = _warp(href, geobox)
+        except rasterio.errors.RasterioIOError:  # WorldCover has no file for all-sea tiles
+            continue
         out = np.where(out == 0, a, out)
     return out
 

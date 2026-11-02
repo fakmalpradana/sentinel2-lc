@@ -52,8 +52,28 @@ def accept(lab: np.ndarray, rng: np.random.Generator) -> bool:
     return rng.random() < 0.35
 
 
+# Bare land is <0.1% of random chips; these mines, volcanoes and sand flats give it support.
+# Chip ids >= HOTSPOT_BASE take hotspot (id - HOTSPOT_BASE) % len, jittered by up to ~5 km.
+HOTSPOT_BASE = 10_000
+HOTSPOTS = [
+    (106.05, -2.05), (106.20, -2.55), (105.85, -1.95),  # Bangka tin mines
+    (137.12, -4.06), (136.95, -4.35),                    # Grasberg + tailings, Papua
+    (117.52, 0.55), (115.70, -2.90), (103.90, -3.80),    # coal: Sangatta, Satui, Tanjung Enim
+    (116.82, -8.96), (121.10, -1.80),                    # Batu Hijau, Morowali nickel
+    (110.44, -7.54), (112.95, -7.94), (115.38, -8.25),   # Merapi, Bromo, Batur
+    (98.39, 3.17), (113.95, -7.25),                      # Sinabung, Madura salt flats
+    (120.25, -9.65), (119.10, -8.55),                    # Sumba savanna, Komodo grassland
+]
+
+
 def make(i: int) -> str:
     rng = np.random.default_rng(i)
+    if i >= HOTSPOT_BASE:
+        lon, lat = HOTSPOTS[(i - HOTSPOT_BASE) % len(HOTSPOTS)]
+        lon, lat = lon + rng.uniform(-0.045, 0.045), lat + rng.uniform(-0.045, 0.045)
+        region, gb = "hotspot", imagery.grid_for_point(lon, lat, size=CHIP)
+        lab = labels.read_labels(gb)
+        return _write(i, rng, region, lon, lat, gb, lab)
     for _ in range(40):
         region, lon, lat = pick(rng)
         gb = imagery.grid_for_point(lon, lat, size=CHIP)
@@ -62,14 +82,21 @@ def make(i: int) -> str:
             break
     else:
         return f"{i}: no chip accepted"
+    return _write(i, rng, region, lon, lat, gb, lab)
+
+
+def _write(i, rng, region, lon, lat, gb, lab) -> str:
     for q in rng.choice([1, 2, 3, 4], size=2, replace=False):
         path = OUT / f"{i:05d}_q{q}.npz"
         if path.exists():
             continue
         c = imagery.composite(gb, YEAR, int(q), pool=4)
-        np.savez_compressed(path, data=c.data.astype(np.float16), filled=c.filled, label=lab,
-                            lon=lon, lat=lat, quarter=q, region=region,
-                            n_scenes=len(c.scenes))
+        tmp = path.with_suffix(".part")  # readers glob *.npz, so they never see a partial file
+        with open(tmp, "wb") as fh:
+            np.savez_compressed(fh, data=c.data.astype(np.float16), filled=c.filled, label=lab,
+                                lon=lon, lat=lat, quarter=q, region=region,
+                                n_scenes=len(c.scenes))
+        tmp.replace(path)
     return f"{i}: {region} {lon:.3f},{lat:.3f}"
 
 
