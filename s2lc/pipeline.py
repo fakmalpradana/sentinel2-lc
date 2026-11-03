@@ -3,6 +3,7 @@ landcover_detection's run_job() calls `run()` for model `sentinel2`."""
 
 import json
 import os
+import time
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -85,13 +86,18 @@ def classify_grid(geobox: GeoBox, year: int, quarter: int, gap_fill: bool,
     filled = np.zeros(geobox.shape, bool)
     image = np.zeros((len(IMAGE_BANDS), *geobox.shape), np.uint16)
     scenes: set[str] = set()
+    timing = {"imagery_s": 0.0, "inference_s": 0.0}
     tiles = GeoboxTiles(geobox, (BLOCK, BLOCK))
     idx = [(i, j) for i in range(tiles.shape[0]) for j in range(tiles.shape[1])]
     for k, (i, j) in enumerate(idx):
         sub = tiles[i, j]
         padded = sub.pad(HALO)
+        t0 = time.perf_counter()
         c = imagery.composite(padded, year, quarter, gap_fill=gap_fill)
+        t1 = time.perf_counter()
         pred = model.predict(imagery.features(c.data))
+        timing["imagery_s"] += t1 - t0  # STAC search + COG download + median
+        timing["inference_s"] += time.perf_counter() - t1
         h, w = sub.shape
         y0, x0 = i * BLOCK, j * BLOCK
         cls[y0:y0 + h, x0:x0 + w] = pred[HALO:HALO + h, HALO:HALO + w]
@@ -101,7 +107,7 @@ def classify_grid(geobox: GeoBox, year: int, quarter: int, gap_fill: bool,
         image[:, y0:y0 + h, x0:x0 + w][:, np.isnan(refl[0])] = 0
         scenes.update(c.scenes)
         progress(10 + int(80 * (k + 1) / len(idx)))
-    return cls, filled, image, sorted(scenes)
+    return cls, filled, image, sorted(scenes), timing
 
 
 def summarize(cls: np.ndarray, inside: np.ndarray, filled: np.ndarray, px_m2: float) -> dict:
@@ -165,7 +171,9 @@ def run(aoi: dict, year: int, quarter: int, out_dir: Path,
         raise AoiError(f"AOI is {geom_utm.area / 1e6:.0f} km2; max is {MAX_AOI_KM2:.0f} km2")
     progress(5)
 
-    cls, filled, image, scenes = classify_grid(geobox, year, quarter, gap_fill, progress)
+    t0 = time.perf_counter()
+    cls, filled, image, scenes, timing = classify_grid(geobox, year, quarter, gap_fill, progress)
+    t1 = time.perf_counter()
     inside = features.geometry_mask([geom_utm], geobox.shape, geobox.affine, invert=True)
     cls = features.sieve(cls, SIEVE_PX, mask=inside)
     cls[~inside] = OUTSIDE
@@ -190,4 +198,7 @@ def run(aoi: dict, year: int, quarter: int, out_dir: Path,
                           "gap_fill": gap_fill}
     summary["attribution"] = ATTRIBUTION.format(year=year)
     summary["crs"] = str(geobox.crs)
+    timing["postprocess_s"] = time.perf_counter() - t1  # sieve, crop, write outputs
+    timing["total_s"] = time.perf_counter() - t0
+    summary["timing"] = {k: round(v, 1) for k, v in timing.items()}
     return files, summary
